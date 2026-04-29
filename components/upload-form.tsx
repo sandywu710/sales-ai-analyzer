@@ -14,32 +14,18 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-type Status = "idle" | "uploading" | "analyzing" | "done" | "error";
+type Status = "idle" | "uploading" | "transcribing" | "analyzing" | "done" | "error";
 
 const DEMO_USER_ID = "00000000-0000-0000-0000-000000000001";
+const ALLOWED_TYPES = ["audio/mpeg", "audio/mp3", "audio/wav", "audio/wave", "audio/x-wav"];
 
-const statusConfig: Record<Status, { label: string; color: string; icon?: React.ReactNode }> = {
-  idle: { label: "", color: "" },
-  uploading: {
-    label: "上傳中...",
-    color: "text-cyan-400",
-    icon: <Loader2Icon className="h-5 w-5 animate-spin" />,
-  },
-  analyzing: {
-    label: "AI 分析中...",
-    color: "text-amber-400",
-    icon: <Loader2Icon className="h-5 w-5 animate-spin" />,
-  },
-  done: {
-    label: "分析完成！正在跳轉...",
-    color: "text-emerald-400",
-    icon: <CheckCircleIcon className="h-5 w-5" />,
-  },
-  error: {
-    label: "發生錯誤，請重試",
-    color: "text-red-400",
-    icon: <XCircleIcon className="h-5 w-5" />,
-  },
+const STEPS: Record<Status, { label: string; step: number }> = {
+  idle:        { label: "",           step: 0 },
+  uploading:   { label: "上傳中...",   step: 1 },
+  transcribing:{ label: "轉錄中...",   step: 2 },
+  analyzing:   { label: "AI 分析中...",step: 3 },
+  done:        { label: "完成！",      step: 4 },
+  error:       { label: "發生錯誤",    step: 0 },
 };
 
 export function UploadForm() {
@@ -52,8 +38,7 @@ export function UploadForm() {
   const fileRef = useRef<HTMLInputElement>(null);
 
   const handleFile = (file: File) => {
-    const allowed = ["audio/mpeg", "audio/mp3", "audio/wav", "audio/wave", "audio/x-wav"];
-    if (!allowed.includes(file.type)) {
+    if (!ALLOWED_TYPES.includes(file.type)) {
       setErrorMsg("僅支援 .mp3 / .wav 格式");
       setStatus("error");
       return;
@@ -72,17 +57,39 @@ export function UploadForm() {
 
   const submitAudio = async () => {
     if (!selectedFile) return;
-    setStatus("uploading");
-    try {
-      const form = new FormData();
-      form.append("audio", selectedFile);
-      form.append("user_id", DEMO_USER_ID);
+    setErrorMsg("");
 
-      const res = await fetch("/api/transcribe", { method: "POST", body: form });
-      if (!res.ok) throw new Error(await res.text());
+    try {
+      // Step 1: Get signed upload URL from our API (tiny request)
+      setStatus("uploading");
+      const urlRes = await fetch("/api/upload-url", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ filename: selectedFile.name, user_id: DEMO_USER_ID }),
+      });
+      if (!urlRes.ok) throw new Error(await urlRes.text());
+      const { signed_url, path } = await urlRes.json();
+
+      // Step 2: Upload file DIRECTLY to Supabase Storage (bypasses Vercel entirely)
+      const uploadRes = await fetch(signed_url, {
+        method: "PUT",
+        headers: { "Content-Type": selectedFile.type || "audio/mpeg" },
+        body: selectedFile,
+      });
+      if (!uploadRes.ok) throw new Error("Storage upload failed");
+
+      // Step 3: Transcribe (server downloads from Supabase, no file in request)
+      setStatus("transcribing");
+      const transcribeRes = await fetch("/api/transcribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ storage_path: path, user_id: DEMO_USER_ID }),
+      });
+      if (!transcribeRes.ok) throw new Error(await transcribeRes.text());
 
       setStatus("analyzing");
-      const data = await res.json();
+      const data = await transcribeRes.json();
+
       setStatus("done");
       setTimeout(() => router.push(`/recording/${data.recording_id}`), 800);
     } catch (e) {
@@ -94,14 +101,14 @@ export function UploadForm() {
   const submitText = async () => {
     if (!transcript.trim()) return;
     setStatus("analyzing");
+    setErrorMsg("");
     try {
-      const form = new FormData();
-      form.append("transcript", transcript.trim());
-      form.append("user_id", DEMO_USER_ID);
-
-      const res = await fetch("/api/transcribe", { method: "POST", body: form });
+      const res = await fetch("/api/transcribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ transcript: transcript.trim(), user_id: DEMO_USER_ID }),
+      });
       if (!res.ok) throw new Error(await res.text());
-
       const data = await res.json();
       setStatus("done");
       setTimeout(() => router.push(`/recording/${data.recording_id}`), 800);
@@ -111,8 +118,8 @@ export function UploadForm() {
     }
   };
 
-  const busy = status === "uploading" || status === "analyzing";
-  const cfg = statusConfig[status];
+  const busy = status !== "idle" && status !== "error";
+  const currentStep = STEPS[status];
 
   return (
     <div className="w-full max-w-2xl mx-auto space-y-6">
@@ -126,7 +133,7 @@ export function UploadForm() {
           </TabsTrigger>
         </TabsList>
 
-        {/* ── Audio Tab ── */}
+        {/* Audio Tab */}
         <TabsContent value="audio">
           <div
             className={cn(
@@ -140,7 +147,7 @@ export function UploadForm() {
             onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
             onDragLeave={() => setDragOver(false)}
             onDrop={onDrop}
-            onClick={() => fileRef.current?.click()}
+            onClick={() => !busy && fileRef.current?.click()}
           >
             <input
               ref={fileRef}
@@ -163,7 +170,7 @@ export function UploadForm() {
             ) : (
               <div>
                 <p className="text-slate-300 font-medium">拖曳或點擊上傳</p>
-                <p className="text-slate-500 text-sm mt-1">支援 .mp3 / .wav</p>
+                <p className="text-slate-500 text-sm mt-1">支援 .mp3 / .wav，無大小限制</p>
               </div>
             )}
           </div>
@@ -172,11 +179,12 @@ export function UploadForm() {
             disabled={!selectedFile || busy}
             onClick={submitAudio}
           >
-            {busy ? <Loader2Icon className="h-5 w-5 animate-spin" /> : "開始分析"}
+            {busy ? <Loader2Icon className="h-5 w-5 animate-spin mr-2" /> : null}
+            {busy ? currentStep.label : "開始分析"}
           </Button>
         </TabsContent>
 
-        {/* ── Text Tab ── */}
+        {/* Text Tab */}
         <TabsContent value="text">
           <Textarea
             placeholder="將邀約電話逐字稿貼在這裡..."
@@ -190,7 +198,8 @@ export function UploadForm() {
             disabled={!transcript.trim() || busy}
             onClick={submitText}
           >
-            {busy ? <Loader2Icon className="h-5 w-5 animate-spin" /> : "開始分析"}
+            {busy ? <Loader2Icon className="h-5 w-5 animate-spin mr-2" /> : null}
+            {busy ? currentStep.label : "開始分析"}
           </Button>
         </TabsContent>
       </Tabs>
@@ -205,17 +214,30 @@ export function UploadForm() {
             ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-400"
             : "border-amber-500/40 bg-amber-500/10 text-amber-400"
         )}>
-          {cfg.icon}
-          <span>{status === "error" ? errorMsg : cfg.label}</span>
+          {status === "done" ? (
+            <CheckCircleIcon className="h-5 w-5 shrink-0" />
+          ) : status === "error" ? (
+            <XCircleIcon className="h-5 w-5 shrink-0" />
+          ) : (
+            <Loader2Icon className="h-5 w-5 animate-spin shrink-0" />
+          )}
+          <span>{status === "error" ? errorMsg : currentStep.label}</span>
 
-          {/* Progress steps */}
-          {(status === "uploading" || status === "analyzing") && (
-            <div className="ml-auto flex items-center gap-2 text-xs text-slate-500">
-              <span className={status === "uploading" ? "text-cyan-400" : "text-slate-600"}>① 上傳</span>
-              <span>→</span>
-              <span className={status === "analyzing" ? "text-amber-400" : "text-slate-600"}>② 轉錄</span>
-              <span>→</span>
-              <span className="text-slate-600">③ 分析</span>
+          {/* Step indicators */}
+          {busy && status !== "done" && (
+            <div className="ml-auto flex items-center gap-1.5 text-xs">
+              {(["uploading","transcribing","analyzing"] as Status[]).map((s, i) => (
+                <span key={s} className={cn(
+                  "px-2 py-0.5 rounded",
+                  currentStep.step > i + 1
+                    ? "text-emerald-400"
+                    : currentStep.step === i + 1
+                    ? "text-amber-400 font-semibold"
+                    : "text-slate-600"
+                )}>
+                  {["① 上傳","② 轉錄","③ 分析"][i]}
+                </span>
+              ))}
             </div>
           )}
         </div>
