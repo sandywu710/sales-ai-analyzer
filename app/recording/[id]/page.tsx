@@ -53,12 +53,13 @@ function Section({ icon, title, children }: { icon: React.ReactNode; title: stri
   );
 }
 
-export default async function RecordingPage({ params }: { params: { id: string } }) {
+export default async function RecordingPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const supabase = createServerSupabaseClient();
 
   const [recResult, anaResult] = await Promise.all([
-    supabase.from("recordings").select("*").eq("id", params.id).single(),
-    supabase.from("analysis").select("*").eq("recording_id", params.id).single(),
+    supabase.from("recordings").select("*").eq("id", id).single(),
+    supabase.from("analysis").select("*").eq("recording_id", id).single(),
   ]);
   const rec = recResult.data as RecordingRow | null;
   const ana = anaResult.data as AnalysisRow | null;
