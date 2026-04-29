@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { createServerSupabaseClient } from "@/lib/supabase";
 import { ObjectionSimulator } from "@/components/objection-simulator";
+import { RetryAnalysis } from "@/components/retry-analysis";
 import {
   ArrowLeftIcon, ZapIcon, BrainIcon, TargetIcon,
   MessageSquareIcon, ShieldIcon, StarIcon,
@@ -172,8 +173,10 @@ export default async function RecordingPage({ params }: { params: Promise<{ id: 
             </div>
           </div>
         ) : (
-          <div className="rounded-xl border border-slate-700 bg-slate-900/60 p-12 text-center text-slate-500">
-            分析尚未完成或發生錯誤
+          <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-10 space-y-4">
+            <p className="text-slate-300 font-medium">分析尚未完成，請點擊重新分析</p>
+            <p className="text-slate-500 text-xs">常見原因：Gemini API 暫時過載、或資料庫欄位尚未建立</p>
+            <RetryAnalysis recordingId={id} />
           </div>
         )}
 
