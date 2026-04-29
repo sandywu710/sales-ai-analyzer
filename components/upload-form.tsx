@@ -36,6 +36,7 @@ export function UploadForm() {
   const [transcript, setTranscript] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
+  const submittingRef = useRef(false);
 
   const handleFile = (file: File) => {
     if (!ALLOWED_TYPES.includes(file.type)) {
@@ -56,7 +57,8 @@ export function UploadForm() {
   }, []);
 
   const submitAudio = async () => {
-    if (!selectedFile) return;
+    if (!selectedFile || submittingRef.current) return;
+    submittingRef.current = true;
     setErrorMsg("");
 
     try {
@@ -95,11 +97,14 @@ export function UploadForm() {
     } catch (e) {
       setErrorMsg(e instanceof Error ? e.message : "上傳失敗");
       setStatus("error");
+    } finally {
+      submittingRef.current = false;
     }
   };
 
   const submitText = async () => {
-    if (!transcript.trim()) return;
+    if (!transcript.trim() || submittingRef.current) return;
+    submittingRef.current = true;
     setStatus("analyzing");
     setErrorMsg("");
     try {
@@ -115,6 +120,8 @@ export function UploadForm() {
     } catch (e) {
       setErrorMsg(e instanceof Error ? e.message : "分析失敗");
       setStatus("error");
+    } finally {
+      submittingRef.current = false;
     }
   };
 

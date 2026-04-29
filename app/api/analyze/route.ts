@@ -11,6 +11,16 @@ export async function POST(req: NextRequest) {
     let transcript: string;
 
     if (recording_id) {
+      // Idempotency: if analysis already exists, return it without calling Gemini
+      const { data: existing } = await supabase
+        .from("analysis")
+        .select("*")
+        .eq("recording_id", recording_id)
+        .single();
+      if (existing) {
+        return NextResponse.json(existing);
+      }
+
       const { data, error } = await supabase
         .from("recordings")
         .select("transcript")
