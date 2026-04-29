@@ -204,42 +204,81 @@ export function UploadForm() {
         </TabsContent>
       </Tabs>
 
-      {/* Status bar */}
-      {status !== "idle" && (
-        <div className={cn(
-          "flex items-center gap-3 rounded-lg border px-4 py-3 text-sm font-medium",
-          status === "error"
-            ? "border-red-500/40 bg-red-500/10 text-red-400"
-            : status === "done"
-            ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-400"
-            : "border-amber-500/40 bg-amber-500/10 text-amber-400"
-        )}>
-          {status === "done" ? (
-            <CheckCircleIcon className="h-5 w-5 shrink-0" />
-          ) : status === "error" ? (
-            <XCircleIcon className="h-5 w-5 shrink-0" />
-          ) : (
-            <Loader2Icon className="h-5 w-5 animate-spin shrink-0" />
-          )}
-          <span>{status === "error" ? errorMsg : currentStep.label}</span>
+      {/* Progress bar */}
+      {status !== "idle" && status !== "error" && (
+        <div className="space-y-5 pt-1">
+          {/* Step circles */}
+          <div className="flex items-center">
+            {(["uploading","transcribing","analyzing","done"] as Status[]).map((s, i) => {
+              const labels = ["上傳中","轉錄中","分析中","完成"];
+              const stepNum = STEPS[s].step;
+              const curStep = STEPS[status].step;
+              const isCompleted = curStep > stepNum;
+              const isActive    = curStep === stepNum;
+              return (
+                <div key={s} className="contents">
+                  <div className="flex flex-col items-center gap-2 shrink-0">
+                    <div className={cn(
+                      "w-10 h-10 rounded-full flex items-center justify-center border-2 transition-all duration-500",
+                      isCompleted
+                        ? "bg-emerald-500 border-emerald-500 text-white"
+                        : isActive
+                        ? "bg-amber-500/10 border-amber-500 text-amber-400"
+                        : "bg-slate-800/60 border-slate-700 text-slate-600"
+                    )}>
+                      {isCompleted ? (
+                        <CheckCircleIcon className="h-5 w-5" />
+                      ) : isActive ? (
+                        <Loader2Icon className="h-5 w-5 animate-spin" />
+                      ) : (
+                        <span className="text-xs font-bold">{i + 1}</span>
+                      )}
+                    </div>
+                    <span className={cn(
+                      "text-xs font-medium whitespace-nowrap",
+                      isCompleted ? "text-emerald-400" :
+                      isActive    ? "text-amber-400"   : "text-slate-600"
+                    )}>
+                      {labels[i]}
+                    </span>
+                  </div>
+                  {i < 3 && (
+                    <div className={cn(
+                      "flex-1 h-0.5 mb-5 mx-1.5 rounded-full transition-all duration-700",
+                      STEPS[status].step > STEPS[s].step ? "bg-emerald-500" : "bg-slate-700"
+                    )} />
+                  )}
+                </div>
+              );
+            })}
+          </div>
 
-          {/* Step indicators */}
-          {busy && status !== "done" && (
-            <div className="ml-auto flex items-center gap-1.5 text-xs">
-              {(["uploading","transcribing","analyzing"] as Status[]).map((s, i) => (
-                <span key={s} className={cn(
-                  "px-2 py-0.5 rounded",
-                  currentStep.step > i + 1
-                    ? "text-emerald-400"
-                    : currentStep.step === i + 1
-                    ? "text-amber-400 font-semibold"
-                    : "text-slate-600"
-                )}>
-                  {["① 上傳","② 轉錄","③ 分析"][i]}
-                </span>
-              ))}
-            </div>
-          )}
+          {/* Animated fill bar */}
+          <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden">
+            <div
+              className={cn(
+                "h-full rounded-full transition-all duration-700 ease-in-out",
+                status === "done"
+                  ? "bg-emerald-500"
+                  : "bg-gradient-to-r from-amber-500 to-amber-300"
+              )}
+              style={{
+                width:
+                  status === "uploading"    ? "25%"  :
+                  status === "transcribing" ? "50%"  :
+                  status === "analyzing"    ? "75%"  :
+                  status === "done"         ? "100%" : "0%",
+              }}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Error state */}
+      {status === "error" && errorMsg && (
+        <div className="flex items-center gap-3 rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-400">
+          <XCircleIcon className="h-5 w-5 shrink-0" />
+          <span>{errorMsg}</span>
         </div>
       )}
     </div>

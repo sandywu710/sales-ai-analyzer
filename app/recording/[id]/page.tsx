@@ -15,6 +15,7 @@ interface AnalysisRow {
   personality: string;
   opening_script: string;
   selling_points: string[];
+  resonance_scripts: string[];
   objections: { issue: string; response: string }[];
 }
 
@@ -173,6 +174,26 @@ export default async function RecordingPage({ params }: { params: Promise<{ id: 
         ) : (
           <div className="rounded-xl border border-slate-700 bg-slate-900/60 p-12 text-center text-slate-500">
             分析尚未完成或發生錯誤
+          </div>
+        )}
+
+        {/* ── Background resonance scripts ── */}
+        {ana?.resonance_scripts && ana.resonance_scripts.length > 0 && (
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <MessageSquareIcon className="h-4 w-4 text-cyan-400" />
+              <h2 className="text-sm font-semibold text-slate-300">背景共鳴話術 · 讓對方感覺「你懂我」</h2>
+            </div>
+            <div className="space-y-3">
+              {ana.resonance_scripts.map((script, i) => (
+                <div key={i} className="rounded-xl border border-cyan-500/20 bg-cyan-500/5 px-5 py-4">
+                  <div className="flex items-start gap-3">
+                    <span className="text-cyan-400 font-bold text-sm shrink-0 mt-0.5">0{i + 1}</span>
+                    <p className="text-sm text-slate-200 leading-relaxed italic">「{script}」</p>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 

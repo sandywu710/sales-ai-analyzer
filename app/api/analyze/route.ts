@@ -45,6 +45,7 @@ export async function POST(req: NextRequest) {
           personality: analysis.personality,
           opening_script: analysis.opening_script,
           selling_points: analysis.selling_points,
+          resonance_scripts: analysis.resonance_scripts ?? [],
           objections: analysis.objections,
         })
         .select()
