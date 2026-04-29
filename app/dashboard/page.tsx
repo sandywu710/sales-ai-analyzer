@@ -111,7 +111,8 @@ export default async function DashboardPage() {
             {rows.map((r) => {
               const analysis = r.analysis?.[0];
               const tags: string[] = analysis?.tags ?? [];
-              const displayName = r.name && r.name.trim() ? r.name.trim() : null;
+              const hasName = r.name && r.name.trim();
+              const displayName = hasName ? r.name!.trim() : "未知";
 
               return (
                 <div
@@ -121,18 +122,14 @@ export default async function DashboardPage() {
                   {/* Clickable main area */}
                   <Link href={`/recording/${r.id}`} className="block p-5">
                     <div className="flex items-start gap-4">
-                      <div className="flex-1 min-w-0 space-y-3">
-                        {/* Name + date row */}
-                        <div className="flex items-center gap-3 flex-wrap">
-                          {displayName && (
-                            <div className="flex items-center gap-1.5">
-                              <UserIcon className="h-3.5 w-3.5 text-amber-400 shrink-0" />
-                              <span className="text-sm font-semibold text-amber-300">{displayName}</span>
-                            </div>
-                          )}
-                          <div className="flex items-center gap-1.5 text-xs text-slate-500">
-                            <ClockIcon className="h-3.5 w-3.5" />
-                            {formatDate(r.created_at)}
+                      <div className="flex-1 min-w-0 space-y-2.5">
+                        {/* Name — primary identifier */}
+                        <div className="flex items-center gap-2.5 flex-wrap">
+                          <div className="flex items-center gap-1.5">
+                            <UserIcon className="h-4 w-4 text-amber-400 shrink-0" />
+                            <span className={`text-base font-bold ${hasName ? "text-white" : "text-slate-500 italic"}`}>
+                              {displayName}
+                            </span>
                           </div>
                           <span className={`text-xs px-2 py-0.5 rounded-full border ${
                             r.status === "done"
@@ -143,6 +140,12 @@ export default async function DashboardPage() {
                           }`}>
                             {r.status === "done" ? "✓ 完成" : r.status === "processing" ? "⏳ 處理中" : "待處理"}
                           </span>
+                        </div>
+
+                        {/* Date — secondary */}
+                        <div className="flex items-center gap-1.5 text-xs text-slate-500">
+                          <ClockIcon className="h-3 w-3" />
+                          {formatDate(r.created_at)}
                         </div>
 
                         {/* Tags */}

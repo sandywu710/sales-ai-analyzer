@@ -3,19 +3,32 @@ import { createServerSupabaseClient } from "@/lib/supabase";
 import { transcribeAudio } from "@/lib/gemini";
 
 // Extract a human-readable name from a filename.
+// Priority: Chinese characters → phone number → fallback empty (UI shows "未知")
 // "2026-04-28 14-47-36 +886903622779.mp3" → "+886903622779"
 // "小明.mp3" → "小明"
+// "John Smith.mp3" → "John Smith"
 function extractName(filename: string): string {
   const base = filename.replace(/\.[^/.]+$/, "").trim();
-  const parts = base.split(/\s+/);
-  if (parts.length > 1) {
-    const last = parts[parts.length - 1];
-    // Looks like a phone number (starts with + or digit, at least 6 digits)
-    if (/^[+\d]/.test(last) && last.replace(/\D/g, "").length >= 6) {
-      return last;
+
+  // 1. Chinese characters — grab first continuous Chinese sequence
+  const chinese = base.match(/[一-龥]{1,10}/);
+  if (chinese) return chinese[0];
+
+  // 2. Phone number — scan segments from right, look for 8+ digits
+  const segments = base.split(/\s+/);
+  for (let i = segments.length - 1; i >= 0; i--) {
+    const seg = segments[i];
+    if (/^[+\d(]/.test(seg) && seg.replace(/\D/g, "").length >= 8) {
+      return seg;
     }
   }
-  return base;
+
+  // 3. If not a timestamp-only string, use the full base as a name
+  if (!/^\d{4}[-/]\d{2}[-/]\d{2}/.test(base)) {
+    return base;
+  }
+
+  return ""; // UI will display "未知"
 }
 
 export async function POST(req: NextRequest) {
