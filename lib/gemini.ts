@@ -18,7 +18,7 @@ const SAFETY = [
 // Transcribe audio using Gemini 1.5 Flash multimodal
 export async function transcribeAudio(buffer: Buffer, mimeType: string): Promise<string> {
   const model = getClient().getGenerativeModel({
-    model: "gemini-2.0-flash",
+    model: "gemini-2.5-flash",
     safetySettings: SAFETY,
   });
 
@@ -58,7 +58,7 @@ const SYSTEM_PROMPT = `你是一位 UIUX 線上課程的電銷成交專家。你
 
 export async function analyzeTranscript(transcript: string) {
   const model = getClient().getGenerativeModel({
-    model: "gemini-2.0-flash",
+    model: "gemini-2.5-flash",
     safetySettings: SAFETY,
     generationConfig: { responseMimeType: "application/json" },
   });
