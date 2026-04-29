@@ -9,31 +9,52 @@ function getClient() {
 }
 
 const SAFETY = [
-  { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
-  { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
+  { category: HarmCategory.HARM_CATEGORY_HARASSMENT,        threshold: HarmBlockThreshold.BLOCK_NONE },
+  { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,       threshold: HarmBlockThreshold.BLOCK_NONE },
   { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
   { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
 ];
 
-// Transcribe audio using Gemini 1.5 Flash multimodal
-export async function transcribeAudio(buffer: Buffer, mimeType: string): Promise<string> {
-  const model = getClient().getGenerativeModel({
-    model: "gemini-2.5-flash",
-    safetySettings: SAFETY,
-  });
+// Models tried in order; next is used when the current returns 503/429/404
+const MODELS = ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash-lite"];
 
-  const result = await model.generateContent([
-    {
-      inlineData: {
-        mimeType,
-        data: buffer.toString("base64"),
-      },
-    },
-    "請將此音訊完整逐字轉錄為繁體中文。只輸出逐字稿內容，不要加任何說明或標點以外的文字。",
-  ]);
-
-  return result.response.text().trim();
+async function withFallback<T>(
+  fn: (modelName: string) => Promise<T>
+): Promise<T> {
+  let lastError: unknown;
+  for (const model of MODELS) {
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        return await fn(model);
+      } catch (err: unknown) {
+        lastError = err;
+        const msg = String(err);
+        const isRetryable = msg.includes("503") || msg.includes("429") || msg.includes("overloaded");
+        const isHard = msg.includes("404") || msg.includes("not found") || msg.includes("no longer available");
+        if (isHard) break;           // try next model immediately
+        if (!isRetryable) throw err; // non-retryable error, surface immediately
+        // wait before retry: 1s, 2s, 4s
+        await new Promise((r) => setTimeout(r, 1000 * 2 ** (attempt - 1)));
+      }
+    }
+  }
+  throw lastError;
 }
+
+// ── Transcription ────────────────────────────────────────────────────────────
+
+export async function transcribeAudio(buffer: Buffer, mimeType: string): Promise<string> {
+  return withFallback(async (modelName) => {
+    const model = getClient().getGenerativeModel({ model: modelName, safetySettings: SAFETY });
+    const result = await model.generateContent([
+      { inlineData: { mimeType, data: buffer.toString("base64") } },
+      "請將此音訊完整逐字轉錄為繁體中文。只輸出逐字稿內容，不要加任何說明。",
+    ]);
+    return result.response.text().trim();
+  });
+}
+
+// ── Analysis ─────────────────────────────────────────────────────────────────
 
 const SYSTEM_PROMPT = `你是一位 UIUX 線上課程的電銷成交專家。你的任務是分析「邀約電話」的逐字稿，產出讓業務在 Demo 階段使用的戰略報告。
 
@@ -57,19 +78,20 @@ const SYSTEM_PROMPT = `你是一位 UIUX 線上課程的電銷成交專家。你
 }`;
 
 export async function analyzeTranscript(transcript: string) {
-  const model = getClient().getGenerativeModel({
-    model: "gemini-2.5-flash",
-    safetySettings: SAFETY,
-    generationConfig: { responseMimeType: "application/json" },
+  return withFallback(async (modelName) => {
+    const model = getClient().getGenerativeModel({
+      model: modelName,
+      safetySettings: SAFETY,
+      generationConfig: { responseMimeType: "application/json" },
+    });
+    const result = await model.generateContent([SYSTEM_PROMPT, transcript]);
+    return JSON.parse(result.response.text()) as {
+      tags: string[];
+      motivation: string;
+      personality: string;
+      opening_script: string;
+      selling_points: string[];
+      objections: { issue: string; response: string }[];
+    };
   });
-
-  const result = await model.generateContent([SYSTEM_PROMPT, transcript]);
-  return JSON.parse(result.response.text()) as {
-    tags: string[];
-    motivation: string;
-    personality: string;
-    opening_script: string;
-    selling_points: string[];
-    objections: { issue: string; response: string }[];
-  };
 }
