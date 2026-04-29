@@ -41,10 +41,19 @@ function tagClass(tag: string) {
 export default async function DashboardPage() {
   const supabase = createServerSupabaseClient();
 
-  const { data: recordings } = await supabase
+  // Try with name column; fall back without it if migration hasn't run yet
+  let { data: recordings, error: queryError } = await supabase
     .from("recordings")
     .select("id, created_at, status, transcript, name, analysis(tags, personality)")
-    .order("created_at", { ascending: false }) as { data: RecordingRow[] | null };
+    .order("created_at", { ascending: false }) as { data: RecordingRow[] | null; error: unknown };
+
+  if (queryError || !recordings) {
+    const fallback = await supabase
+      .from("recordings")
+      .select("id, created_at, status, transcript, analysis(tags, personality)")
+      .order("created_at", { ascending: false }) as { data: RecordingRow[] | null };
+    recordings = fallback.data;
+  }
 
   const rows = recordings ?? [];
   const done = rows.filter((r) => r.status === "done").length;
