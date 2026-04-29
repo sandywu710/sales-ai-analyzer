@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { createServerSupabaseClient } from "@/lib/supabase";
 import Link from "next/link";
 import { ZapIcon, LayoutDashboardIcon, PlusIcon, ClockIcon } from "lucide-react";
