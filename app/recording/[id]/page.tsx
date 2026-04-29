@@ -5,9 +5,10 @@ import Link from "next/link";
 import { createServerSupabaseClient } from "@/lib/supabase";
 import { ObjectionSimulator } from "@/components/objection-simulator";
 import { RetryAnalysis } from "@/components/retry-analysis";
+import { DeleteRecording } from "@/components/delete-recording";
 import {
   ArrowLeftIcon, ZapIcon, BrainIcon, TargetIcon,
-  MessageSquareIcon, ShieldIcon, StarIcon,
+  MessageSquareIcon, ShieldIcon, StarIcon, UserIcon,
 } from "lucide-react";
 
 interface AnalysisRow {
@@ -25,6 +26,7 @@ interface RecordingRow {
   created_at: string;
   transcript: string | null;
   status: string;
+  name: string | null;
 }
 
 // Map tags to emoji + color class
@@ -83,10 +85,22 @@ export default async function RecordingPage({ params }: { params: Promise<{ id: 
               <ZapIcon className="h-4 w-4 text-amber-400" />
               <span className="text-sm font-medium">戰情報告</span>
             </div>
+            {rec.name && rec.name.trim() && (
+              <>
+                <div className="h-4 w-px bg-slate-700" />
+                <div className="flex items-center gap-1.5">
+                  <UserIcon className="h-3.5 w-3.5 text-amber-400" />
+                  <span className="text-sm font-semibold text-amber-300">{rec.name.trim()}</span>
+                </div>
+              </>
+            )}
           </div>
-          <span className="text-xs text-slate-600">
-            {new Date(rec.created_at).toLocaleString("zh-TW")}
-          </span>
+          <div className="flex items-center gap-3">
+            <span className="text-xs text-slate-600">
+              {new Date(rec.created_at).toLocaleString("zh-TW")}
+            </span>
+            <DeleteRecording recordingId={id} redirectAfter={true} />
+          </div>
         </div>
       </nav>
 

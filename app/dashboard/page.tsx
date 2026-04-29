@@ -2,7 +2,8 @@ export const dynamic = "force-dynamic";
 
 import { createServerSupabaseClient } from "@/lib/supabase";
 import Link from "next/link";
-import { ZapIcon, LayoutDashboardIcon, PlusIcon, ClockIcon } from "lucide-react";
+import { ZapIcon, LayoutDashboardIcon, PlusIcon, ClockIcon, UserIcon } from "lucide-react";
+import { DeleteRecording } from "@/components/delete-recording";
 
 interface AnalysisRow {
   tags: string[];
@@ -14,6 +15,7 @@ interface RecordingRow {
   created_at: string;
   status: string;
   transcript: string | null;
+  name: string | null;
   analysis: AnalysisRow[] | null;
 }
 
@@ -41,7 +43,7 @@ export default async function DashboardPage() {
 
   const { data: recordings } = await supabase
     .from("recordings")
-    .select("id, created_at, status, transcript, analysis(tags, personality)")
+    .select("id, created_at, status, transcript, name, analysis(tags, personality)")
     .order("created_at", { ascending: false }) as { data: RecordingRow[] | null };
 
   const rows = recordings ?? [];
@@ -100,55 +102,69 @@ export default async function DashboardPage() {
             {rows.map((r) => {
               const analysis = r.analysis?.[0];
               const tags: string[] = analysis?.tags ?? [];
+              const displayName = r.name && r.name.trim() ? r.name.trim() : null;
 
               return (
-                <Link
+                <div
                   key={r.id}
-                  href={`/recording/${r.id}`}
-                  className="group rounded-xl border border-slate-700/60 bg-slate-900/60 hover:border-amber-500/40 hover:bg-slate-800/60 transition-all duration-200 p-5"
+                  className="group relative rounded-xl border border-slate-700/60 bg-slate-900/60 hover:border-amber-500/40 hover:bg-slate-800/60 transition-all duration-200"
                 >
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1 min-w-0 space-y-3">
-                      {/* Top row: date + status */}
-                      <div className="flex items-center gap-3">
-                        <div className="flex items-center gap-1.5 text-xs text-slate-500">
-                          <ClockIcon className="h-3.5 w-3.5" />
-                          {formatDate(r.created_at)}
+                  {/* Clickable main area */}
+                  <Link href={`/recording/${r.id}`} className="block p-5">
+                    <div className="flex items-start gap-4">
+                      <div className="flex-1 min-w-0 space-y-3">
+                        {/* Name + date row */}
+                        <div className="flex items-center gap-3 flex-wrap">
+                          {displayName && (
+                            <div className="flex items-center gap-1.5">
+                              <UserIcon className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+                              <span className="text-sm font-semibold text-amber-300">{displayName}</span>
+                            </div>
+                          )}
+                          <div className="flex items-center gap-1.5 text-xs text-slate-500">
+                            <ClockIcon className="h-3.5 w-3.5" />
+                            {formatDate(r.created_at)}
+                          </div>
+                          <span className={`text-xs px-2 py-0.5 rounded-full border ${
+                            r.status === "done"
+                              ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
+                              : r.status === "processing"
+                              ? "bg-amber-500/10 text-amber-400 border-amber-500/30"
+                              : "bg-slate-700/50 text-slate-400 border-slate-600/40"
+                          }`}>
+                            {r.status === "done" ? "✓ 完成" : r.status === "processing" ? "⏳ 處理中" : "待處理"}
+                          </span>
                         </div>
-                        <span className={`text-xs px-2 py-0.5 rounded-full border ${
-                          r.status === "done"
-                            ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
-                            : r.status === "processing"
-                            ? "bg-amber-500/10 text-amber-400 border-amber-500/30"
-                            : "bg-slate-700/50 text-slate-400 border-slate-600/40"
-                        }`}>
-                          {r.status === "done" ? "✓ 完成" : r.status === "processing" ? "⏳ 處理中" : "待處理"}
-                        </span>
+
+                        {/* Tags */}
+                        {tags.length > 0 && (
+                          <div className="flex flex-wrap gap-2">
+                            {tags.map((tag) => (
+                              <span key={tag} className={`text-xs px-2.5 py-0.5 rounded-full border ${tagClass(tag)}`}>
+                                {tag}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Personality */}
+                        {analysis?.personality && (
+                          <p className="text-sm text-slate-400">
+                            <span className="text-slate-500">性格：</span>
+                            {analysis.personality}
+                          </p>
+                        )}
                       </div>
 
-                      {/* Tags */}
-                      {tags.length > 0 && (
-                        <div className="flex flex-wrap gap-2">
-                          {tags.map((tag) => (
-                            <span key={tag} className={`text-xs px-2.5 py-0.5 rounded-full border ${tagClass(tag)}`}>
-                              {tag}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-
-                      {/* Personality */}
-                      {analysis?.personality && (
-                        <p className="text-sm text-slate-400">
-                          <span className="text-slate-500">性格：</span>
-                          {analysis.personality}
-                        </p>
-                      )}
+                      <span className="text-slate-600 group-hover:text-amber-400 transition-colors text-lg shrink-0 mr-8">→</span>
                     </div>
+                  </Link>
 
-                    <span className="text-slate-600 group-hover:text-amber-400 transition-colors text-lg">→</span>
+                  {/* Delete button — outside Link to avoid navigation */}
+                  <div className="absolute top-3.5 right-3.5">
+                    <DeleteRecording recordingId={r.id} redirectAfter={false} />
                   </div>
-                </Link>
+                </div>
               );
             })}
           </div>

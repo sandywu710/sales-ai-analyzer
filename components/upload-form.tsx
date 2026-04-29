@@ -85,7 +85,7 @@ export function UploadForm() {
       const transcribeRes = await fetch("/api/transcribe", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ storage_path: path, user_id: DEMO_USER_ID }),
+        body: JSON.stringify({ storage_path: path, user_id: DEMO_USER_ID, filename: selectedFile.name }),
       });
       if (!transcribeRes.ok) throw new Error(await transcribeRes.text());
 

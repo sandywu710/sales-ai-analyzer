@@ -2,12 +2,28 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase";
 import { transcribeAudio } from "@/lib/gemini";
 
+// Extract a human-readable name from a filename.
+// "2026-04-28 14-47-36 +886903622779.mp3" → "+886903622779"
+// "小明.mp3" → "小明"
+function extractName(filename: string): string {
+  const base = filename.replace(/\.[^/.]+$/, "").trim();
+  const parts = base.split(/\s+/);
+  if (parts.length > 1) {
+    const last = parts[parts.length - 1];
+    // Looks like a phone number (starts with + or digit, at least 6 digits)
+    if (/^[+\d]/.test(last) && last.replace(/\D/g, "").length >= 6) {
+      return last;
+    }
+  }
+  return base;
+}
+
 export async function POST(req: NextRequest) {
   const supabase = createServerSupabaseClient();
 
   try {
     const body = await req.json();
-    const { storage_path, user_id, transcript: directTranscript } = body;
+    const { storage_path, user_id, transcript: directTranscript, filename } = body;
 
     const resolvedUserId = user_id ?? "00000000-0000-0000-0000-000000000001";
 
@@ -22,9 +38,9 @@ export async function POST(req: NextRequest) {
 
     let transcript: string;
     let audioUrl = "";
+    const name = filename ? extractName(filename) : "手動輸入";
 
     if (storage_path) {
-      // Download file from Supabase Storage (server-side, no size limit)
       const { data: fileData, error: downloadError } = await supabase.storage
         .from("recordings")
         .download(storage_path);
@@ -42,15 +58,26 @@ export async function POST(req: NextRequest) {
       transcript = directTranscript.trim();
     }
 
-    // Create recording row
+    // Try insert with name; fall back without if column doesn't exist yet
+    let recordingId: string;
     const { data: recording, error: insertError } = await supabase
       .from("recordings")
-      .insert({ user_id: resolvedUserId, audio_url: audioUrl, transcript, status: "done" })
+      .insert({ user_id: resolvedUserId, audio_url: audioUrl, transcript, status: "done", name })
       .select()
       .single();
 
-    if (insertError) throw insertError;
-    const recordingId = (recording as { id: string }).id;
+    if (insertError) {
+      // name column may not exist yet — retry without it
+      const fb = await supabase
+        .from("recordings")
+        .insert({ user_id: resolvedUserId, audio_url: audioUrl, transcript, status: "done" })
+        .select()
+        .single();
+      if (fb.error) throw fb.error;
+      recordingId = (fb.data as { id: string }).id;
+    } else {
+      recordingId = (recording as { id: string }).id;
+    }
 
     // Auto-trigger analysis
     const origin = req.nextUrl.origin;
