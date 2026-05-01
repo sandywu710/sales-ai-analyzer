@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { createServerSupabaseClient } from "@/lib/supabase";
 import Link from "next/link";
-import { ZapIcon, LayoutDashboardIcon, PlusIcon, ClockIcon, UserIcon } from "lucide-react";
+import { ZapIcon, LayoutDashboardIcon, PlusIcon, ClockIcon, UserIcon, InfoIcon } from "lucide-react";
 import { DeleteRecording } from "@/components/delete-recording";
 
 interface AnalysisRow {
@@ -67,10 +67,16 @@ export default async function DashboardPage() {
             <ZapIcon className="h-5 w-5 text-amber-400" />
             <span className="font-bold tracking-tight">Sales AI Analyzer</span>
           </div>
-          <Link href="/" className="flex items-center gap-2 text-sm bg-amber-500 hover:bg-amber-400 text-black font-semibold px-4 py-2 rounded-lg transition-colors">
-            <PlusIcon className="h-4 w-4" />
-            新增分析
-          </Link>
+          <div className="flex items-center gap-3">
+            <Link href="/about" className="flex items-center gap-2 text-sm text-slate-400 hover:text-white transition-colors">
+              <InfoIcon className="h-4 w-4" />
+              關於
+            </Link>
+            <Link href="/" className="flex items-center gap-2 text-sm bg-amber-500 hover:bg-amber-400 text-black font-semibold px-4 py-2 rounded-lg transition-colors">
+              <PlusIcon className="h-4 w-4" />
+              新增分析
+            </Link>
+          </div>
         </div>
       </nav>
 

@@ -72,7 +72,13 @@ const SYSTEM_PROMPT = `你是一位 UIUX 與平面設計線上課程的資深設
 4. 成交子彈：找出 3 個對方在電話中提到的具體興趣點或動機亮點。
 5. 背景共鳴話術：根據對方的學歷、職業、興趣，產出 2-3 句讓對方感覺「你懂我」的破冰句，每句都要帶入電話中的具體細節，格式：
    「我接觸過很多[對方具體背景]，他們共同的困擾都是[痛點]，但其實[反轉觀點]，這點你應該很有體感吧？」
-6. 反對預警：預測 Demo 時可能遇到的拒絕理由，並提供以前輩語氣寫的應對方案。
+6. 破冰引導話術：根據顧客性格與背景，產出 2-3 句讓顧客主動說更多、自己說出認同適合學 UIUX 的引導句。
+   設計原則（每句選擇最適合的一種）：
+   a. 被看見型：先說一句讓對方感覺「被看見」的觀察，例如：「感覺你是一個很有自己想法的人，應該都會比較喜歡主控權在自己手上吧？」
+   b. 引發認同型：用反問讓對方自己說出認同，例如：「你有沒有那種感覺，很多東西學了卻不知道怎麼用在實際工作上？」
+   c. 好奇引導型（適合茫然型）：引發好奇讓他想繼續聊，例如：「很多人都很好學，但真正能學以致用的技能其實不多，我可以用互動的方式讓你感受看看」
+   語氣是設計師前輩聊天，不是業務推銷，絕不能出現「您」或敬語。
+7. 反對預警：預測 Demo 時可能遇到的拒絕理由，並提供以前輩語氣寫的應對方案。
 
 回傳格式必須嚴格為以下 JSON，不可有其他文字：
 {
@@ -82,6 +88,7 @@ const SYSTEM_PROMPT = `你是一位 UIUX 與平面設計線上課程的資深設
   "opening_script": "string",
   "selling_points": ["string", "string", "string"],
   "resonance_scripts": ["string", "string"],
+  "icebreaker_scripts": ["string", "string"],
   "objections": [
     { "issue": "string", "response": "string" }
   ]
@@ -102,6 +109,7 @@ export async function analyzeTranscript(transcript: string) {
       opening_script: string;
       selling_points: string[];
       resonance_scripts: string[];
+      icebreaker_scripts: string[];
       objections: { issue: string; response: string }[];
     };
   });

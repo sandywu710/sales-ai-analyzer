@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { UploadForm } from "@/components/upload-form";
-import { LayoutDashboardIcon, ZapIcon } from "lucide-react";
+import { LayoutDashboardIcon, ZapIcon, InfoIcon } from "lucide-react";
 
 export default function Home() {
   return (
@@ -12,13 +12,16 @@ export default function Home() {
             <ZapIcon className="h-5 w-5 text-amber-400" />
             <span className="font-bold tracking-tight text-white">Sales AI Analyzer</span>
           </div>
-          <Link
-            href="/dashboard"
-            className="flex items-center gap-2 text-sm text-slate-400 hover:text-white transition-colors"
-          >
-            <LayoutDashboardIcon className="h-4 w-4" />
-            儀表板
-          </Link>
+          <div className="flex items-center gap-4">
+            <Link href="/about" className="flex items-center gap-2 text-sm text-slate-400 hover:text-white transition-colors">
+              <InfoIcon className="h-4 w-4" />
+              關於
+            </Link>
+            <Link href="/dashboard" className="flex items-center gap-2 text-sm text-slate-400 hover:text-white transition-colors">
+              <LayoutDashboardIcon className="h-4 w-4" />
+              儀表板
+            </Link>
+          </div>
         </div>
       </nav>
 

@@ -54,26 +54,25 @@ export async function POST(req: NextRequest) {
         opening_script: analysis.opening_script,
         selling_points: analysis.selling_points,
         resonance_scripts: analysis.resonance_scripts ?? [],
+        icebreaker_scripts: analysis.icebreaker_scripts ?? [],
         objections: analysis.objections,
       };
 
-      let { data: saved, error: insertError } = await supabase
-        .from("analysis")
-        .insert(fullPayload)
-        .select()
-        .single();
+      // Progressive fallback: full → without icebreaker → without both new columns
+      let { data: saved, error: err1 } = await supabase
+        .from("analysis").insert(fullPayload).select().single();
 
-      // Graceful fallback: if resonance_scripts column doesn't exist yet, retry without it
-      if (insertError) {
-        console.warn("[analyze] full insert failed, retrying without resonance_scripts:", insertError.message);
-        const { resonance_scripts: _omit, ...fallbackPayload } = fullPayload;
-        const fb = await supabase
-          .from("analysis")
-          .insert(fallbackPayload)
-          .select()
-          .single();
-        if (fb.error) throw new Error(`DB insert failed: ${fb.error.message}`);
-        saved = fb.data;
+      if (err1) {
+        const { icebreaker_scripts: _i, ...withoutIcebreaker } = fullPayload;
+        const r2 = await supabase.from("analysis").insert(withoutIcebreaker).select().single();
+        if (r2.error) {
+          const { resonance_scripts: _r, icebreaker_scripts: _i2, ...basePayload } = fullPayload;
+          const r3 = await supabase.from("analysis").insert(basePayload).select().single();
+          if (r3.error) throw new Error(`DB insert failed: ${r3.error.message}`);
+          saved = r3.data;
+        } else {
+          saved = r2.data;
+        }
       }
 
       return NextResponse.json(saved);

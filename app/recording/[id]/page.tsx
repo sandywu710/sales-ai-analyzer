@@ -8,7 +8,7 @@ import { RetryAnalysis } from "@/components/retry-analysis";
 import { DeleteRecording } from "@/components/delete-recording";
 import {
   ArrowLeftIcon, ZapIcon, BrainIcon, TargetIcon,
-  MessageSquareIcon, ShieldIcon, StarIcon, UserIcon,
+  MessageSquareIcon, ShieldIcon, StarIcon, UserIcon, InfoIcon, SparklesIcon,
 } from "lucide-react";
 
 interface AnalysisRow {
@@ -18,6 +18,7 @@ interface AnalysisRow {
   opening_script: string;
   selling_points: string[];
   resonance_scripts: string[];
+  icebreaker_scripts: string[];
   objections: { issue: string; response: string }[];
 }
 
@@ -96,6 +97,10 @@ export default async function RecordingPage({ params }: { params: Promise<{ id: 
             )}
           </div>
           <div className="flex items-center gap-3">
+            <Link href="/about" className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-white transition-colors">
+              <InfoIcon className="h-3.5 w-3.5" />
+              關於
+            </Link>
             <span className="text-xs text-slate-600">
               {new Date(rec.created_at).toLocaleString("zh-TW")}
             </span>
@@ -184,6 +189,22 @@ export default async function RecordingPage({ params }: { params: Promise<{ id: 
                   </div>
                 </div>
               </Section>
+
+              {/* Icebreaker scripts */}
+              {(ana.icebreaker_scripts ?? []).length > 0 && (
+                <Section icon={<SparklesIcon className="h-4 w-4 text-orange-400" />} title="破冰引導話術">
+                  <div className="space-y-2.5">
+                    {(ana.icebreaker_scripts ?? []).map((script, i) => (
+                      <div key={i} className="rounded-lg border border-orange-500/20 bg-orange-500/5 px-4 py-3">
+                        <div className="flex items-start gap-2.5">
+                          <span className="text-orange-400 font-bold text-sm shrink-0 mt-0.5">0{i + 1}</span>
+                          <p className="text-sm text-slate-200 leading-relaxed">「{script}」</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </Section>
+              )}
             </div>
           </div>
         ) : (
