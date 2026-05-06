@@ -21,7 +21,7 @@ interface AnalysisRow {
   resonance_scripts: string[];
   icebreaker_scripts: string[];
   objections: { issue: string; response: string }[];
-  demo_interactions: { question: string; bridge: string }[];
+  demo_interactions: { question: string; bridge: string; awakening: string }[];
 }
 
 interface RecordingRow {
@@ -216,17 +216,24 @@ export default async function RecordingPage({ params }: { params: Promise<{ id: 
               {/* Demo interaction design */}
               {(ana.demo_interactions ?? []).length > 0 && (
                 <Section icon={<MousePointerClickIcon className="h-4 w-4 text-sky-400" />} title="Demo 互動體驗設計">
-                  <p className="text-xs text-slate-500 leading-relaxed">讓對方親身體驗 UIUX 思維，自己說出「原來我也有這種思維」</p>
-                  <div className="space-y-4">
+                  <p className="text-xs text-slate-500 leading-relaxed">讓對方突然意識到「我每天都在被 UIUX 設計師設計卻不知道」</p>
+                  <div className="space-y-5">
                     {(ana.demo_interactions ?? []).map((item, i) => (
                       <div key={i} className="rounded-lg border border-sky-500/20 bg-sky-500/5 p-4 space-y-3">
+                        {/* 問題 */}
                         <div className="flex items-start gap-2.5">
                           <span className="text-sky-400 font-bold text-sm shrink-0 mt-0.5">0{i + 1}</span>
-                          <p className="text-sm text-slate-100 leading-relaxed font-medium">「{item.question}」</p>
+                          <p className="text-sm text-slate-100 leading-relaxed font-semibold">「{item.question}」</p>
                         </div>
-                        <div className="ml-7 rounded-md border border-slate-700/40 bg-slate-800/60 px-3 py-2.5">
-                          <p className="text-xs text-sky-400 mb-1 uppercase tracking-wide">業務接話</p>
+                        {/* 接話 */}
+                        <div className="ml-7 rounded-md border border-sky-700/30 bg-slate-800/60 px-3 py-2.5 space-y-1">
+                          <p className="text-xs text-sky-400 uppercase tracking-wide">不管對方怎麼回答，這樣接</p>
                           <p className="text-sm text-slate-300 leading-relaxed italic">「{item.bridge}」</p>
+                        </div>
+                        {/* 頓悟收尾 */}
+                        <div className="ml-7 rounded-md border border-amber-500/20 bg-amber-500/5 px-3 py-2.5 space-y-1">
+                          <p className="text-xs text-amber-400 uppercase tracking-wide">頓悟收尾</p>
+                          <p className="text-sm text-amber-200 leading-relaxed italic">「{item.awakening}」</p>
                         </div>
                       </div>
                     ))}
