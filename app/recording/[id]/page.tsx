@@ -6,6 +6,7 @@ import { createServerSupabaseClient } from "@/lib/supabase";
 import { ObjectionSimulator } from "@/components/objection-simulator";
 import { RetryAnalysis } from "@/components/retry-analysis";
 import { DeleteRecording } from "@/components/delete-recording";
+import { ForceReanalyze } from "@/components/force-reanalyze";
 import {
   ArrowLeftIcon, ZapIcon, BrainIcon, TargetIcon,
   MessageSquareIcon, ShieldIcon, StarIcon, UserIcon, InfoIcon, SparklesIcon, PlusIcon, MousePointerClickIcon,
@@ -105,6 +106,7 @@ export default async function RecordingPage({ params }: { params: Promise<{ id: 
             <span className="text-xs text-slate-600">
               {new Date(rec.created_at).toLocaleString("zh-TW")}
             </span>
+            {ana && <ForceReanalyze recordingId={id} />}
             <Link href="/" className="flex items-center gap-2 text-sm bg-amber-500 hover:bg-amber-400 text-black font-semibold px-4 py-2 rounded-lg transition-colors">
               <PlusIcon className="h-4 w-4" />
               新增分析

@@ -6,19 +6,24 @@ export async function POST(req: NextRequest) {
   const supabase = createServerSupabaseClient();
 
   try {
-    const { recording_id, transcript: directTranscript } = await req.json();
+    const { recording_id, transcript: directTranscript, force } = await req.json();
 
     let transcript: string;
 
     if (recording_id) {
       // Idempotency: if analysis already exists, return it without calling Gemini
-      const { data: existing } = await supabase
-        .from("analysis")
-        .select("*")
-        .eq("recording_id", recording_id)
-        .single();
-      if (existing) {
-        return NextResponse.json(existing);
+      // Unless force=true, in which case delete existing and re-run
+      if (!force) {
+        const { data: existing } = await supabase
+          .from("analysis")
+          .select("*")
+          .eq("recording_id", recording_id)
+          .single();
+        if (existing) {
+          return NextResponse.json(existing);
+        }
+      } else {
+        await supabase.from("analysis").delete().eq("recording_id", recording_id);
       }
 
       const { data, error } = await supabase
