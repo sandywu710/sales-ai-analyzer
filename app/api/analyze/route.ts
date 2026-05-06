@@ -56,20 +56,27 @@ export async function POST(req: NextRequest) {
         resonance_scripts: analysis.resonance_scripts ?? [],
         icebreaker_scripts: analysis.icebreaker_scripts ?? [],
         objections: analysis.objections,
+        demo_interactions: analysis.demo_interactions ?? [],
       };
 
-      // Progressive fallback: full → without icebreaker → without both new columns
+      // Progressive fallback: full → without demo_interactions → without icebreaker → base
       let { data: saved, error: err1 } = await supabase
         .from("analysis").insert(fullPayload).select().single();
 
       if (err1) {
-        const { icebreaker_scripts: _i, ...withoutIcebreaker } = fullPayload;
-        const r2 = await supabase.from("analysis").insert(withoutIcebreaker).select().single();
+        const { demo_interactions: _d, ...withoutDemo } = fullPayload;
+        const r2 = await supabase.from("analysis").insert(withoutDemo).select().single();
         if (r2.error) {
-          const { resonance_scripts: _r, icebreaker_scripts: _i2, ...basePayload } = fullPayload;
-          const r3 = await supabase.from("analysis").insert(basePayload).select().single();
-          if (r3.error) throw new Error(`DB insert failed: ${r3.error.message}`);
-          saved = r3.data;
+          const { demo_interactions: _d2, icebreaker_scripts: _i, ...withoutIcebreaker } = fullPayload;
+          const r3 = await supabase.from("analysis").insert(withoutIcebreaker).select().single();
+          if (r3.error) {
+            const { resonance_scripts: _r, icebreaker_scripts: _i2, demo_interactions: _d3, ...basePayload } = fullPayload;
+            const r4 = await supabase.from("analysis").insert(basePayload).select().single();
+            if (r4.error) throw new Error(`DB insert failed: ${r4.error.message}`);
+            saved = r4.data;
+          } else {
+            saved = r3.data;
+          }
         } else {
           saved = r2.data;
         }

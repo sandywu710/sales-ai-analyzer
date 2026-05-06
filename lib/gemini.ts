@@ -84,6 +84,16 @@ const SYSTEM_PROMPT = `你是一位 UIUX 與平面設計線上課程的資深設
    範例完整結構：「你自己平常是怕麻煩的人嗎？還是其實解決了一個問題會讓你感到有成就感？因為我有學生其實超怕麻煩的，但 UIUX 的核心是解決問題的能力跟創造商業價值。所以我不太曉得欸，你會不會其實是個超怕麻煩的人，還是發現問題解決了以後覺得其實從中也獲得了成長？」
    每一個話術都必須帶入電話中顧客的具體背景細節（職業、學歷、困擾、說過的話），絕對不可以是通用句子。語氣是設計師前輩跟朋友聊天，絕不能出現「您」、「請問」或任何敬語業務腔。
 7. 反對預警：預測 Demo 時可能遇到的拒絕理由，並提供以前輩語氣寫的應對方案。
+8. Demo 互動體驗設計：根據顧客的年齡、職業、生活習慣，推薦 1-2 個讓對方「親身體驗 UIUX 思維」的互動問題。
+   設計原則：
+   - 一定要從對方日常會接觸的數位介面出發，選擇最符合他生活習慣的介面（例如：IG、Line、Google Maps、提款機、YouTube、捷運票機）
+   - 問法格式：「你有沒有想過為什麼 XX 要設計成這樣？」
+   - 不管對方回答什麼，業務都可以用「你剛剛說的其實就是 UX 思維」來接住
+   - 年齡判斷：如果從電話中判斷顧客年齡在 40 歲以上，不要用 IG，改用提款機、Line、Google Maps、捷運票機這類更日常的介面
+   - 設計背景：如果顧客有設計相關背景（平面、視覺、美術），可以問更深一點，例如「你有沒有想過為什麼某個按鈕要放在右下角」
+   - 每個互動問題後面必須附上「業務的接話範例」，讓新人知道對方回答後要怎麼接
+   - 語氣是設計師前輩跟朋友聊天，不可以有敬語或業務腔
+   - 接話範例格式：「你剛剛說的其實就是 UX 思維——[用1-2句話解釋，並自然帶入課程方向]」
 
 回傳格式必須嚴格為以下 JSON，不可有其他文字：
 {
@@ -96,6 +106,9 @@ const SYSTEM_PROMPT = `你是一位 UIUX 與平面設計線上課程的資深設
   "icebreaker_scripts": ["string", "string"],
   "objections": [
     { "issue": "string", "response": "string" }
+  ],
+  "demo_interactions": [
+    { "question": "string", "bridge": "string" }
   ]
 }`;
 
@@ -116,6 +129,7 @@ export async function analyzeTranscript(transcript: string) {
       resonance_scripts: string[];
       icebreaker_scripts: string[];
       objections: { issue: string; response: string }[];
+      demo_interactions: { question: string; bridge: string }[];
     };
   });
 }

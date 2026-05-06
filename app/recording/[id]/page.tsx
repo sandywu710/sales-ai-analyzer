@@ -8,7 +8,7 @@ import { RetryAnalysis } from "@/components/retry-analysis";
 import { DeleteRecording } from "@/components/delete-recording";
 import {
   ArrowLeftIcon, ZapIcon, BrainIcon, TargetIcon,
-  MessageSquareIcon, ShieldIcon, StarIcon, UserIcon, InfoIcon, SparklesIcon, PlusIcon,
+  MessageSquareIcon, ShieldIcon, StarIcon, UserIcon, InfoIcon, SparklesIcon, PlusIcon, MousePointerClickIcon,
 } from "lucide-react";
 
 interface AnalysisRow {
@@ -20,6 +20,7 @@ interface AnalysisRow {
   resonance_scripts: string[];
   icebreaker_scripts: string[];
   objections: { issue: string; response: string }[];
+  demo_interactions: { question: string; bridge: string }[];
 }
 
 interface RecordingRow {
@@ -203,6 +204,27 @@ export default async function RecordingPage({ params }: { params: Promise<{ id: 
                         <div className="flex items-start gap-2.5">
                           <span className="text-orange-400 font-bold text-sm shrink-0 mt-0.5">0{i + 1}</span>
                           <p className="text-sm text-slate-200 leading-relaxed">「{script}」</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </Section>
+              )}
+
+              {/* Demo interaction design */}
+              {(ana.demo_interactions ?? []).length > 0 && (
+                <Section icon={<MousePointerClickIcon className="h-4 w-4 text-sky-400" />} title="Demo 互動體驗設計">
+                  <p className="text-xs text-slate-500 leading-relaxed">讓對方親身體驗 UIUX 思維，自己說出「原來我也有這種思維」</p>
+                  <div className="space-y-4">
+                    {(ana.demo_interactions ?? []).map((item, i) => (
+                      <div key={i} className="rounded-lg border border-sky-500/20 bg-sky-500/5 p-4 space-y-3">
+                        <div className="flex items-start gap-2.5">
+                          <span className="text-sky-400 font-bold text-sm shrink-0 mt-0.5">0{i + 1}</span>
+                          <p className="text-sm text-slate-100 leading-relaxed font-medium">「{item.question}」</p>
+                        </div>
+                        <div className="ml-7 rounded-md border border-slate-700/40 bg-slate-800/60 px-3 py-2.5">
+                          <p className="text-xs text-sky-400 mb-1 uppercase tracking-wide">業務接話</p>
+                          <p className="text-sm text-slate-300 leading-relaxed italic">「{item.bridge}」</p>
                         </div>
                       </div>
                     ))}
