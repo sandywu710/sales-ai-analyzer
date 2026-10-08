@@ -2,8 +2,10 @@ export const dynamic = "force-dynamic";
 
 import { createServerSupabaseClient } from "@/lib/supabase";
 import Link from "next/link";
-import { ZapIcon, LayoutDashboardIcon, PlusIcon, ClockIcon, UserIcon, InfoIcon } from "lucide-react";
+import { LayoutDashboardIcon, ClockIcon, UserIcon, UserCheckIcon, GaugeIcon } from "lucide-react";
 import { DeleteRecording } from "@/components/delete-recording";
+import { SiteNav } from "@/components/site-nav";
+import { listConsultants } from "@/lib/consultants";
 
 interface AnalysisRow {
   tags: string[];
@@ -16,7 +18,9 @@ interface RecordingRow {
   status: string;
   transcript: string | null;
   name: string | null;
+  consultant_id?: string | null;
   analysis: AnalysisRow[] | null;
+  call_trust_analysis?: { total_score: number; trust_level: string; created_at: string }[] | null;
 }
 
 function formatDate(iso: string) {
@@ -41,11 +45,22 @@ function tagClass(tag: string) {
 export default async function DashboardPage() {
   const supabase = createServerSupabaseClient();
 
-  // Try with name column; fall back without it if migration hasn't run yet
+  // 先試含新功能欄位的查詢；資料庫還沒更新就退回舊查詢
+  let consultantNames: Record<string, string> = {};
   let { data: recordings, error: queryError } = await supabase
     .from("recordings")
-    .select("id, created_at, status, transcript, name, analysis(tags, personality)")
+    .select("id, created_at, status, transcript, name, consultant_id, analysis(tags, personality), call_trust_analysis(total_score, trust_level, created_at)")
     .order("created_at", { ascending: false }) as { data: RecordingRow[] | null; error: unknown };
+  if (!queryError) {
+    try {
+      consultantNames = Object.fromEntries((await listConsultants(supabase)).map((c) => [c.id, c.name]));
+    } catch {}
+  }
+
+  if (queryError || !recordings) ({ data: recordings, error: queryError } = await supabase
+    .from("recordings")
+    .select("id, created_at, status, transcript, name, analysis(tags, personality)")
+    .order("created_at", { ascending: false }) as { data: RecordingRow[] | null; error: unknown });
 
   if (queryError || !recordings) {
     const fallback = await supabase
@@ -60,27 +75,9 @@ export default async function DashboardPage() {
 
   return (
     <div className="min-h-screen flex flex-col">
-      {/* Nav */}
-      <nav className="border-b border-slate-800/60 px-6 py-4">
-        <div className="max-w-6xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <ZapIcon className="h-5 w-5 text-amber-400" />
-            <span className="font-bold tracking-tight">Sales AI Analyzer</span>
-          </div>
-          <div className="flex items-center gap-3">
-            <Link href="/about" className="flex items-center gap-2 text-sm text-slate-400 hover:text-white transition-colors">
-              <InfoIcon className="h-4 w-4" />
-              關於
-            </Link>
-            <Link href="/" className="flex items-center gap-2 text-sm bg-amber-500 hover:bg-amber-400 text-black font-semibold px-4 py-2 rounded-lg transition-colors">
-              <PlusIcon className="h-4 w-4" />
-              新增分析
-            </Link>
-          </div>
-        </div>
-      </nav>
+      <SiteNav active="/dashboard" />
 
-      <main className="flex-1 max-w-6xl mx-auto w-full px-6 py-8 space-y-8">
+      <main className="flex-1 max-w-6xl mx-auto w-full px-4 sm:px-6 py-8 space-y-8">
         {/* Header */}
         <div className="flex items-center gap-3">
           <LayoutDashboardIcon className="h-5 w-5 text-amber-400" />
@@ -119,6 +116,8 @@ export default async function DashboardPage() {
               const tags: string[] = analysis?.tags ?? [];
               const hasName = r.name && r.name.trim();
               const displayName = hasName ? r.name!.trim() : "未知";
+              const trust = [...(r.call_trust_analysis ?? [])].sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
+              const consultant = r.consultant_id ? consultantNames[r.consultant_id] : null;
 
               return (
                 <div
@@ -149,9 +148,21 @@ export default async function DashboardPage() {
                         </div>
 
                         {/* Date — secondary */}
-                        <div className="flex items-center gap-1.5 text-xs text-slate-500">
-                          <ClockIcon className="h-3 w-3" />
-                          {formatDate(r.created_at)}
+                        <div className="flex items-center gap-3 flex-wrap text-xs text-slate-500">
+                          <span className="flex items-center gap-1.5">
+                            <ClockIcon className="h-3 w-3" />
+                            {formatDate(r.created_at)}
+                          </span>
+                          {consultant && (
+                            <span className="flex items-center gap-1 text-slate-400">
+                              <UserCheckIcon className="h-3 w-3" /> 顧問 {consultant}
+                            </span>
+                          )}
+                          {trust && (
+                            <span className="flex items-center gap-1 text-sky-300 bg-sky-500/10 border border-sky-500/30 rounded-full px-2 py-0.5">
+                              <GaugeIcon className="h-3 w-3" /> 信任 {trust.total_score}・{trust.trust_level}
+                            </span>
+                          )}
                         </div>
 
                         {/* Tags */}

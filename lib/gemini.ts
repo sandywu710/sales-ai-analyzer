@@ -2,7 +2,11 @@ import {
   GoogleGenerativeAI,
   HarmCategory,
   HarmBlockThreshold,
+  type Part,
 } from "@google/generative-ai";
+import { GoogleAIFileManager, FileState } from "@google/generative-ai/server";
+import type { Rubric } from "./rubrics";
+import { buildTrustPrompt } from "./trust-prompt";
 
 function getClient() {
   return new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
@@ -30,7 +34,7 @@ async function withFallback<T>(
         lastError = err;
         const msg = String(err);
         const isRetryable = msg.includes("503") || msg.includes("429") || msg.includes("overloaded");
-        const isHard = msg.includes("404") || msg.includes("not found") || msg.includes("no longer available");
+        const isHard = msg.includes("404") || msg.includes("not found") || msg.includes("no longer available") || msg.includes("INVALID_JSON");
         if (isHard) break;           // try next model immediately
         if (!isRetryable) throw err; // non-retryable error, surface immediately
         // wait before retry: 1s, 2s, 4s
@@ -41,17 +45,78 @@ async function withFallback<T>(
   throw lastError;
 }
 
+// ── Audio input ──────────────────────────────────────────────────────────────
+
+// 小檔直接夾帶；大檔（> 15MB）先用 Gemini Files API 上傳，分析完再刪掉
+const INLINE_LIMIT = 15 * 1024 * 1024;
+
+async function prepareAudio(buffer: Buffer, mimeType: string): Promise<{ part: Part; cleanup: () => Promise<void> }> {
+  if (buffer.length <= INLINE_LIMIT) {
+    return { part: { inlineData: { mimeType, data: buffer.toString("base64") } }, cleanup: async () => {} };
+  }
+  const fm = new GoogleAIFileManager(process.env.GEMINI_API_KEY!);
+  const up = await fm.uploadFile(buffer, { mimeType, displayName: `call-${Date.now()}` });
+  let file = up.file;
+  for (let i = 0; i < 60 && file.state === FileState.PROCESSING; i++) {
+    await new Promise((r) => setTimeout(r, 2000));
+    file = await fm.getFile(file.name);
+  }
+  if (file.state === FileState.FAILED) throw new Error("Gemini 無法處理這個音檔");
+  return {
+    part: { fileData: { mimeType: file.mimeType, fileUri: file.uri } },
+    cleanup: async () => { await fm.deleteFile(file.name).catch(() => {}); },
+  };
+}
+
 // ── Transcription ────────────────────────────────────────────────────────────
 
 export async function transcribeAudio(buffer: Buffer, mimeType: string): Promise<string> {
-  return withFallback(async (modelName) => {
-    const model = getClient().getGenerativeModel({ model: modelName, safetySettings: SAFETY });
-    const result = await model.generateContent([
-      { inlineData: { mimeType, data: buffer.toString("base64") } },
-      "請將此音訊完整逐字轉錄為繁體中文。只輸出逐字稿內容，不要加任何說明。",
-    ]);
-    return result.response.text().trim();
-  });
+  const { part, cleanup } = await prepareAudio(buffer, mimeType);
+  try {
+    return await withFallback(async (modelName) => {
+      const model = getClient().getGenerativeModel({ model: modelName, safetySettings: SAFETY });
+      const result = await model.generateContent([
+        part,
+        "請將此音訊完整逐字轉錄為繁體中文。只輸出逐字稿內容，不要加任何說明。",
+      ]);
+      return result.response.text().trim();
+    });
+  } finally {
+    await cleanup();
+  }
+}
+
+// ── Trust analysis（音檔直接給 Gemini 聽）─────────────────────────────────────
+
+export async function analyzeTrust(
+  input: { audio?: { buffer: Buffer; mimeType: string }; transcript?: string },
+  rubric: Rubric,
+  durationSeconds?: number | null
+): Promise<{ raw: unknown; model: string }> {
+  const hasAudio = !!input.audio;
+  const prompt = buildTrustPrompt(rubric, { hasAudio, durationSeconds });
+  const prepared = input.audio ? await prepareAudio(input.audio.buffer, input.audio.mimeType) : null;
+  try {
+    return await withFallback(async (modelName) => {
+      const model = getClient().getGenerativeModel({
+        model: modelName,
+        safetySettings: SAFETY,
+        generationConfig: { responseMimeType: "application/json", temperature: 0.2 },
+      });
+      const parts: (string | Part)[] = [prompt];
+      if (prepared) parts.push(prepared.part);
+      else parts.push(`以下是通話逐字稿：\n${input.transcript ?? ""}`);
+      const result = await model.generateContent(parts);
+      const text = result.response.text().replace(/^```(?:json)?\s*|\s*```$/g, "");
+      try {
+        return { raw: JSON.parse(text), model: modelName };
+      } catch {
+        throw new Error(`INVALID_JSON from ${modelName}`);
+      }
+    });
+  } finally {
+    await prepared?.cleanup();
+  }
 }
 
 // ── Analysis ─────────────────────────────────────────────────────────────────

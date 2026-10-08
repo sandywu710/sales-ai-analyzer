@@ -44,3 +44,19 @@ export async function DELETE(
     return NextResponse.json({ error: String(err) }, { status: 500 });
   }
 }
+
+// 補選／更改顧問、客戶暱稱
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params;
+  const supabase = createServerSupabaseClient();
+  const body = await req.json();
+  const patch: Record<string, unknown> = {};
+  if ("consultant_id" in body) patch.consultant_id = body.consultant_id || null;
+  if ("customer_alias" in body) patch.customer_alias = body.customer_alias?.trim() || null;
+  const { error } = await supabase.from("recordings").update(patch).eq("id", id);
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ success: true });
+}

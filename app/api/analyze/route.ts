@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase";
 import { analyzeTranscript } from "@/lib/gemini";
 
+export const maxDuration = 300;
+
 export async function POST(req: NextRequest) {
   const supabase = createServerSupabaseClient();
 

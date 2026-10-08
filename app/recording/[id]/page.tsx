@@ -6,6 +6,13 @@ import { createServerSupabaseClient } from "@/lib/supabase";
 import { RetryAnalysis } from "@/components/retry-analysis";
 import { DeleteRecording } from "@/components/delete-recording";
 import { ForceReanalyze } from "@/components/force-reanalyze";
+import { ConsultantAssign } from "@/components/consultant-assign";
+import { TrustAnalyzeButton } from "@/components/trust-analyze-button";
+import { TrustReport } from "@/components/trust-report";
+import { SchemaNotice } from "@/components/schema-notice";
+import { listConsultants, type Consultant } from "@/lib/consultants";
+import { getActiveRubric, type Rubric } from "@/lib/rubrics";
+import type { TrustResult } from "@/lib/trust";
 import {
   ArrowLeftIcon, ZapIcon, BrainIcon, TargetIcon,
   MessageSquareIcon, ShieldIcon, StarIcon, UserIcon, InfoIcon, SparklesIcon, PlusIcon, MousePointerClickIcon,
@@ -35,6 +42,47 @@ interface RecordingRow {
   transcript: string | null;
   status: string;
   name: string | null;
+  consultant_id?: string | null;
+  customer_alias?: string | null;
+}
+
+interface TrustRow {
+  id: string;
+  rubric_id: string | null;
+  rubric_name: string | null;
+  total_score: number;
+  result: TrustResult;
+  created_at: string;
+}
+
+// 信任等級在標準裡排第幾（決定顏色）
+function levelIndexOf(result: TrustResult, rubric: Rubric | null) {
+  const pct = result.max_total ? (result.total_score / result.max_total) * 100 : 0;
+  const levels = rubric ? [...rubric.levels].sort((a, b) => a.min - b.min) : [{ min: 0 }, { min: 40 }, { min: 60 }, { min: 80 }];
+  const idx = levels.filter((l) => pct >= l.min).length - 1;
+  return Math.max(0, Math.round((idx / Math.max(1, levels.length - 1)) * 3));
+}
+
+async function loadTrust(supabase: ReturnType<typeof createServerSupabaseClient>, id: string) {
+  try {
+    const consultants = await listConsultants(supabase);
+    const active = await getActiveRubric(supabase);
+    const { data } = await supabase
+      .from("call_trust_analysis")
+      .select("id, rubric_id, rubric_name, total_score, result, created_at")
+      .eq("recording_id", id)
+      .order("created_at", { ascending: false })
+      .limit(1);
+    const trust = (data?.[0] as TrustRow | undefined) ?? null;
+    let rubric: Rubric | null = null;
+    if (trust?.rubric_id) {
+      const { data: r } = await supabase.from("sales_rubrics").select("*").eq("id", trust.rubric_id).maybeSingle();
+      rubric = (r as Rubric) ?? null;
+    }
+    return { ready: true as const, consultants, active, trust, rubric };
+  } catch {
+    return { ready: false as const };
+  }
 }
 
 // Map tags to emoji + color class
@@ -78,12 +126,15 @@ export default async function RecordingPage({ params }: { params: Promise<{ id: 
 
   if (!rec) notFound();
 
+  const t = await loadTrust(supabase, id);
+  const consultantName = t.ready ? t.consultants.find((c: Consultant) => c.id === rec.consultant_id)?.name : undefined;
+
   return (
     <div className="min-h-screen flex flex-col">
       {/* Nav */}
       <nav className="border-b border-slate-800/60 px-6 py-4 sticky top-0 z-10 bg-[#050d1a]/90 backdrop-blur-sm">
-        <div className="max-w-6xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-4">
+        <div className="max-w-6xl mx-auto flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-4 flex-wrap">
             <Link href="/dashboard" className="flex items-center gap-2 text-sm text-slate-400 hover:text-white transition-colors">
               <ArrowLeftIcon className="h-4 w-4" />
               返回
@@ -103,7 +154,8 @@ export default async function RecordingPage({ params }: { params: Promise<{ id: 
               </>
             )}
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
+            <Link href="/stats" className="text-xs text-slate-500 hover:text-white transition-colors">統計</Link>
             <Link href="/about" className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-white transition-colors">
               <InfoIcon className="h-3.5 w-3.5" />
               關於
@@ -121,7 +173,41 @@ export default async function RecordingPage({ params }: { params: Promise<{ id: 
         </div>
       </nav>
 
-      <main className="flex-1 max-w-6xl mx-auto w-full px-6 py-8 space-y-8">
+      <main className="flex-1 max-w-6xl mx-auto w-full px-4 sm:px-6 py-8 space-y-8">
+        {/* ── 邀約 Call 信任度分析 ── */}
+        {t.ready ? (
+          <section className="space-y-4">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <div className="flex items-center gap-2">
+                <h2 className="text-base font-bold text-white">邀約 Call 信任度分析</h2>
+                {consultantName && <span className="text-xs text-slate-400">· 顧問 {consultantName}</span>}
+              </div>
+              <TrustAnalyzeButton
+                recordingId={id}
+                label={t.trust ? `用目前標準重新分析（${t.active.name}）` : `用目前標準分析（${t.active.name}）`}
+              />
+            </div>
+            <ConsultantAssign recordingId={id} consultantId={rec.consultant_id ?? null} consultants={t.consultants} />
+            {t.trust ? (
+              <TrustReport
+                result={t.trust.result}
+                rubricName={t.trust.rubric_name ?? "（未知版本）"}
+                levelIndex={levelIndexOf(t.trust.result, t.rubric)}
+                createdAt={t.trust.created_at}
+              />
+            ) : (
+              <div className="rounded-xl border border-dashed border-slate-700 bg-slate-900/40 p-6 text-sm text-slate-400">
+                這筆紀錄還沒有信任度分析。按右上方的按鈕，就會用目前使用中的評分標準分析（會用掉一次 Gemini 額度）。
+              </div>
+            )}
+            <div className="border-t border-slate-800 pt-6">
+              <h2 className="text-base font-bold text-white">Demo 攻略</h2>
+            </div>
+          </section>
+        ) : (
+          <SchemaNotice />
+        )}
+
         {/* ── Top: Tags ── */}
         {ana?.tags && ana.tags.length > 0 && (
           <div className="space-y-3">

@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase";
 import { transcribeAudio } from "@/lib/gemini";
+import { mimeFromPath } from "@/lib/audio";
+
+export const maxDuration = 300;
 
 // Extract a human-readable name from a filename.
 // Priority: Chinese characters → phone number → fallback empty (UI shows "未知")
@@ -36,7 +39,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { storage_path, user_id, transcript: directTranscript, filename } = body;
+    const { storage_path, user_id, transcript: directTranscript, filename, consultant_id, customer_alias, duration_seconds } = body;
 
     const resolvedUserId = user_id ?? "00000000-0000-0000-0000-000000000001";
 
@@ -51,7 +54,8 @@ export async function POST(req: NextRequest) {
 
     let transcript: string;
     let audioUrl = "";
-    const name = filename ? extractName(filename) : "手動輸入";
+    const alias = typeof customer_alias === "string" ? customer_alias.trim() : "";
+    const name = alias || (filename ? extractName(filename) : "手動輸入");
 
     if (storage_path) {
       const { data: fileData, error: downloadError } = await supabase.storage
@@ -62,8 +66,7 @@ export async function POST(req: NextRequest) {
 
       audioUrl = supabase.storage.from("recordings").getPublicUrl(storage_path).data.publicUrl;
 
-      const ext = storage_path.split(".").pop()?.toLowerCase() ?? "mp3";
-      const mimeType = ext === "wav" ? "audio/wav" : "audio/mpeg";
+      const mimeType = mimeFromPath(storage_path);
       const buffer = Buffer.from(await fileData.arrayBuffer());
 
       transcript = await transcribeAudio(buffer, mimeType);
@@ -71,32 +74,34 @@ export async function POST(req: NextRequest) {
       transcript = directTranscript.trim();
     }
 
-    // Try insert with name; fall back without if column doesn't exist yet
-    let recordingId: string;
-    const { data: recording, error: insertError } = await supabase
-      .from("recordings")
-      .insert({ user_id: resolvedUserId, audio_url: audioUrl, transcript, status: "done", name })
-      .select()
-      .single();
-
-    if (insertError) {
-      // name column may not exist yet — retry without it
-      const fb = await supabase
-        .from("recordings")
-        .insert({ user_id: resolvedUserId, audio_url: audioUrl, transcript, status: "done" })
-        .select()
-        .single();
-      if (fb.error) throw fb.error;
-      recordingId = (fb.data as { id: string }).id;
-    } else {
-      recordingId = (recording as { id: string }).id;
+    // 依序嘗試：含顧問等新欄位 → 含 name → 最基本欄位（資料庫還沒更新時也能用）
+    const base = { user_id: resolvedUserId, audio_url: audioUrl, transcript, status: "done" };
+    const attempts = [
+      {
+        ...base, name,
+        consultant_id: consultant_id || null,
+        customer_alias: alias || null,
+        duration_seconds: Number(duration_seconds) ? Math.round(Number(duration_seconds)) : null,
+        storage_path: storage_path || null,
+      },
+      { ...base, name },
+      base,
+    ];
+    let recordingId = "";
+    let lastErr: unknown = null;
+    for (const payload of attempts) {
+      const { data, error } = await supabase.from("recordings").insert(payload).select().single();
+      if (!error) { recordingId = (data as { id: string }).id; break; }
+      lastErr = error;
     }
+    if (!recordingId) throw lastErr;
 
     // Auto-trigger analysis
     const origin = req.nextUrl.origin;
     const analyzeRes = await fetch(`${origin}/api/analyze`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      // 帶上原本的 cookie，預覽網站有登入保護時內部呼叫才不會被擋
+      headers: { "Content-Type": "application/json", cookie: req.headers.get("cookie") ?? "" },
       body: JSON.stringify({ recording_id: recordingId }),
     });
 
