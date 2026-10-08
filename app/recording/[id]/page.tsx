@@ -3,7 +3,6 @@ export const dynamic = "force-dynamic";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { createServerSupabaseClient } from "@/lib/supabase";
-import { ObjectionSimulator } from "@/components/objection-simulator";
 import { RetryAnalysis } from "@/components/retry-analysis";
 import { DeleteRecording } from "@/components/delete-recording";
 import { ForceReanalyze } from "@/components/force-reanalyze";
@@ -12,14 +11,20 @@ import {
   MessageSquareIcon, ShieldIcon, StarIcon, UserIcon, InfoIcon, SparklesIcon, PlusIcon, MousePointerClickIcon,
 } from "lucide-react";
 
+interface IcebreakerItem {
+  script: string;
+  why: string;
+}
+
 interface AnalysisRow {
   tags: string[];
   motivation: string;
   personality: string;
+  career_angle?: string;
   opening_script: string;
   selling_points: string[];
   resonance_scripts: string[];
-  icebreaker_scripts: string[];
+  icebreaker_scripts: (string | IcebreakerItem)[];
   objections: { issue: string; response: string }[];
   demo_interactions: { question: string; bridge: string; awakening: string }[];
 }
@@ -167,25 +172,14 @@ export default async function RecordingPage({ params }: { params: Promise<{ id: 
 
             {/* Right: Demo strategy */}
             <div className="space-y-4">
-              <Section icon={<TargetIcon className="h-4 w-4 text-emerald-400" />} title="Demo 攻略卡片">
-                <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-4 space-y-3">
-                  <p className="text-xs text-emerald-500 uppercase tracking-wide">建議重點順序</p>
-                  <ol className="space-y-2">
-                    {[
-                      "先用動機共鳴打開情感連結",
-                      `強調「${(ana.selling_points ?? [])[0] ?? "核心賣點"}」`,
-                      "展示具體案例或數據佐證",
-                      "引導對方說出自己的期待",
-                      "提供限時優惠或行動方案",
-                    ].map((step, i) => (
-                      <li key={i} className="flex items-start gap-2 text-sm text-slate-300">
-                        <span className="text-emerald-400 font-bold shrink-0">{i + 1}.</span>
-                        {step}
-                      </li>
-                    ))}
-                  </ol>
-                </div>
-              </Section>
+              {/* Career angle */}
+              {ana.career_angle && (
+                <Section icon={<TargetIcon className="h-4 w-4 text-emerald-400" />} title="職業切入點">
+                  <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-4">
+                    <p className="text-sm text-emerald-200 leading-relaxed font-medium">{ana.career_angle}</p>
+                  </div>
+                </Section>
+              )}
 
               <Section icon={<MessageSquareIcon className="h-4 w-4 text-purple-400" />} title="客製化開場白">
                 <div className="rounded-lg border border-purple-500/20 bg-purple-500/5 p-4">
@@ -200,15 +194,39 @@ export default async function RecordingPage({ params }: { params: Promise<{ id: 
               {/* Icebreaker scripts */}
               {(ana.icebreaker_scripts ?? []).length > 0 && (
                 <Section icon={<SparklesIcon className="h-4 w-4 text-orange-400" />} title="破冰引導話術">
-                  <div className="space-y-2.5">
-                    {(ana.icebreaker_scripts ?? []).map((script, i) => (
-                      <div key={i} className="rounded-lg border border-orange-500/20 bg-orange-500/5 px-4 py-3">
-                        <div className="flex items-start gap-2.5">
-                          <span className="text-orange-400 font-bold text-sm shrink-0 mt-0.5">0{i + 1}</span>
-                          <p className="text-sm text-slate-200 leading-relaxed">「{script}」</p>
+                  <div className="space-y-3">
+                    {(ana.icebreaker_scripts ?? []).map((item, i) => {
+                      let scriptText: string;
+                      let whyText: string | null = null;
+                      if (typeof item === "object" && item !== null) {
+                        scriptText = (item as IcebreakerItem).script;
+                        whyText = (item as IcebreakerItem).why ?? null;
+                      } else {
+                        const raw = item as string;
+                        if (raw.startsWith("{")) {
+                          try {
+                            const parsed = JSON.parse(raw) as IcebreakerItem;
+                            scriptText = parsed.script ?? raw;
+                            whyText = parsed.why ?? null;
+                          } catch {
+                            scriptText = raw;
+                          }
+                        } else {
+                          scriptText = raw;
+                        }
+                      }
+                      return (
+                        <div key={i} className="rounded-lg border border-orange-500/20 bg-orange-500/5 px-4 py-3 space-y-1.5">
+                          <div className="flex items-start gap-2.5">
+                            <span className="text-orange-400 font-bold text-sm shrink-0 mt-0.5">0{i + 1}</span>
+                            <p className="text-sm text-slate-200 leading-relaxed">「{scriptText}」</p>
+                          </div>
+                          {whyText && (
+                            <p className="text-xs text-slate-500 leading-relaxed pl-8">{whyText}</p>
+                          )}
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </Section>
               )}
@@ -270,15 +288,28 @@ export default async function RecordingPage({ params }: { params: Promise<{ id: 
           </div>
         )}
 
-        {/* ── Bottom: Objection simulator ── */}
+        {/* ── Bottom: Objection warnings ── */}
         {ana?.objections && ana.objections.length > 0 && (
           <div className="space-y-4">
             <div className="flex items-center gap-2">
               <ShieldIcon className="h-4 w-4 text-red-400" />
-              <h2 className="text-sm font-semibold text-slate-300">反對預警 · 點擊預演應對</h2>
+              <h2 className="text-sm font-semibold text-slate-300">反對預警</h2>
               <span className="text-xs text-slate-600">{ana.objections.length} 個預測反對</span>
             </div>
-            <ObjectionSimulator objections={ana.objections} />
+            <div className="space-y-2.5">
+              {ana.objections.map((obj, i) => (
+                <div key={i} className="rounded-lg border border-red-500/20 bg-red-500/5 px-4 py-3">
+                  <div className="flex items-start gap-2 flex-wrap sm:flex-nowrap">
+                    <span className="text-red-400 text-sm shrink-0 font-medium whitespace-nowrap">他可能說：</span>
+                    <span className="text-sm text-slate-300">{obj.issue}</span>
+                    <span className="text-slate-600 text-sm shrink-0 mx-1 hidden sm:inline">→</span>
+                    <span className="text-slate-600 text-sm shrink-0 sm:hidden w-full pl-0 mt-1">↓</span>
+                    <span className="text-amber-400 text-sm shrink-0 font-medium whitespace-nowrap">你可以接：</span>
+                    <span className="text-sm text-slate-200">{obj.response}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
