@@ -1,6 +1,7 @@
 import type { TrustResult, Evidence } from "@/lib/trust";
 import { CLASSIFICATION_FIELDS } from "@/lib/taxonomy";
 import { IDEAL_DURATION } from "@/lib/trust-prompt";
+import { StudentInfoCard } from "@/components/student-info-card";
 import { formatDuration, parseTimestamp } from "@/lib/audio";
 import {
   GaugeIcon, ClockIcon, AlertTriangleIcon, TrendingUpIcon, TrendingDownIcon,
@@ -70,6 +71,9 @@ export function TrustReport({
 
   return (
     <div className="space-y-4">
+      {/* ── 學生資訊（可複製） ── */}
+      <StudentInfoCard info={result.student_info} />
+
       {/* ── 總分 ── */}
       <div className="rounded-xl border border-sky-500/30 bg-gradient-to-br from-sky-500/10 to-slate-900/60 p-5 sm:p-6">
         <div className="flex flex-col sm:flex-row sm:items-center gap-5">

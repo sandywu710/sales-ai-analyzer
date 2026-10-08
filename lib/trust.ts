@@ -3,7 +3,7 @@
 import type { Rubric } from "./rubrics";
 import { levelFor } from "./rubrics";
 import { CLASSIFICATION_FIELDS, type ClassificationKey } from "./taxonomy";
-import { STAGES } from "./trust-prompt";
+import { STAGES, STUDENT_INFO_FIELDS } from "./trust-prompt";
 
 export interface Evidence { time: string; reason: string }
 export interface Quote { time: string; text: string }
@@ -26,6 +26,7 @@ export interface TrustResult {
   interrogation: { count: number; examples: Quote[] };
   key_moments: { up: Evidence[]; down: Evidence[] };
   coach_tip: string;
+  student_info?: Record<string, string>; // 舊分析沒有這欄
   classification: Record<ClassificationKey, string | null>;
   classification_evidence: Partial<Record<ClassificationKey, Evidence>>;
   demo_advice: { angle: string; disc_tip: string };
@@ -97,6 +98,7 @@ export function normalizeTrust(raw: any, rubric: Rubric, opts: { hasAudio: boole
     interrogation: { count: int(raw?.interrogation?.count, 0, 999), examples: arr(raw?.interrogation?.examples).map(quote) },
     key_moments: { up: arr(raw?.key_moments?.up).slice(0, 3).map(ev), down: arr(raw?.key_moments?.down).slice(0, 3).map(ev) },
     coach_tip: str(raw?.coach_tip),
+    student_info: Object.fromEntries(STUDENT_INFO_FIELDS.map((f) => [f.key, str(raw?.student_info?.[f.key])])),
     classification,
     classification_evidence,
     demo_advice: { angle: str(raw?.demo_advice?.angle), disc_tip: str(raw?.demo_advice?.disc_tip) },

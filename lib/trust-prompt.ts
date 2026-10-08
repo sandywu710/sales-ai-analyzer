@@ -15,6 +15,14 @@ export const STAGES = [
   { key: "invite", name: "塑造價值與邀約", ideal: "約 7–10 分鐘" },
 ];
 
+// 「學生資訊」：給顧問複製貼到其他地方用的四個欄位（label 是複製出去的文字，guide 是給 AI 的寫法說明）
+export const STUDENT_INFO_FIELDS = [
+  { key: "background", label: "背景", guide: "年齡、學歷／科系、產業、職稱、年資等客觀背景" },
+  { key: "current", label: "現況", guide: "目前工作或生活狀態、遇到的困擾或卡關" },
+  { key: "personality", label: "個性", guide: "從說話方式觀察到的個性，例如謹慎、直接、愛聊、怕改變" },
+  { key: "reason", label: "想學原因", guide: "為什麼想學 UIUX、想達成什麼改變（盡量用客戶自己的話）" },
+] as const;
+
 // 通話長度建議範圍（秒）
 export const IDEAL_DURATION = { min: 8 * 60, max: 12 * 60 };
 
@@ -86,6 +94,8 @@ ${STAGES.map((s) => `- key: ${s.key}，${s.name}（理想：${s.ideal}）`).join
 - interrogation：顧問說出質問句（例如「你為什麼填表單？」「你到底要不要？」）的次數與例句
 - key_moments：2–3 個信任「上升」的時間點、2–3 個信任「下降」的時間點，各附一句原因
 - coach_tip：一句教練建議，下一通電話最該改的一件事
+- student_info：學生資訊摘要，給顧問直接複製使用。每一欄 1–2 句、具體、帶入通話中的細節，沒提到就寫「通話中未提到」：
+${STUDENT_INFO_FIELDS.map((f) => `  - ${f.key}（${f.label}）：${f.guide}`).join("\n")}
 
 【客戶歸類：一定要從固定選項中選，不能自由發揮】
 ${classList}
@@ -121,6 +131,7 @@ ${discHints}
     "down": [ { "time": "mm:ss", "reason": "string" } ]
   },
   "coach_tip": "string",
+  "student_info": { "background": "string", "current": "string", "personality": "string", "reason": "string" },
   "classification": {
     "motive_primary": "string", "motive_secondary": null, "segment": "string", "disc": "string",
     "initial_guard": "string", "motive_strength": "string", "budget_sensitivity": "string", "decision_maker": "string"
