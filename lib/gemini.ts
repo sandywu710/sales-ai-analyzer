@@ -34,8 +34,9 @@ const SAFETY = [
   { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
 ];
 
-// Models tried in order; next is used when the current returns 503/429/404
-const MODELS = ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash-lite"];
+// 依序嘗試的模型：目前的失敗（503/429/404）就換下一個
+// 老闆帳號是「新用戶」，不能用 2.5 系列；2.0 系列已全面下架（2026-10）
+const MODELS = ["gemini-3.8-flash", "gemini-3.5-flash", "gemini-3.5-flash-lite"];
 
 async function withFallback<T>(
   fn: (modelName: string) => Promise<T>
