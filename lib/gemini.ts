@@ -1,15 +1,30 @@
 import {
-  GoogleGenerativeAI,
+  GoogleGenAI,
   HarmCategory,
   HarmBlockThreshold,
+  FileState,
   type Part,
-} from "@google/generative-ai";
-import { GoogleAIFileManager, FileState } from "@google/generative-ai/server";
+} from "@google/genai";
 import type { Rubric } from "./rubrics";
 import { buildTrustPrompt } from "./trust-prompt";
 
+// 金鑰只從環境變數讀取，SDK 會用 x-goog-api-key 標頭送出（不放在網址上）
 function getClient() {
-  return new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+  return new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
+}
+
+// 呼叫 Gemini 並取回文字
+async function generate(
+  modelName: string,
+  contents: (string | Part)[],
+  config: { responseMimeType?: string; temperature?: number } = {}
+): Promise<string> {
+  const res = await getClient().models.generateContent({
+    model: modelName,
+    contents,
+    config: { safetySettings: SAFETY, ...config },
+  });
+  return res.text ?? "";
 }
 
 const SAFETY = [
@@ -54,17 +69,19 @@ async function prepareAudio(buffer: Buffer, mimeType: string): Promise<{ part: P
   if (buffer.length <= INLINE_LIMIT) {
     return { part: { inlineData: { mimeType, data: buffer.toString("base64") } }, cleanup: async () => {} };
   }
-  const fm = new GoogleAIFileManager(process.env.GEMINI_API_KEY!);
-  const up = await fm.uploadFile(buffer, { mimeType, displayName: `call-${Date.now()}` });
-  let file = up.file;
+  const ai = getClient();
+  let file = await ai.files.upload({
+    file: new Blob([new Uint8Array(buffer)], { type: mimeType }),
+    config: { mimeType, displayName: `call-${Date.now()}` },
+  });
   for (let i = 0; i < 60 && file.state === FileState.PROCESSING; i++) {
     await new Promise((r) => setTimeout(r, 2000));
-    file = await fm.getFile(file.name);
+    file = await ai.files.get({ name: file.name! });
   }
   if (file.state === FileState.FAILED) throw new Error("Gemini 無法處理這個音檔");
   return {
-    part: { fileData: { mimeType: file.mimeType, fileUri: file.uri } },
-    cleanup: async () => { await fm.deleteFile(file.name).catch(() => {}); },
+    part: { fileData: { mimeType: file.mimeType ?? mimeType, fileUri: file.uri! } },
+    cleanup: async () => { await ai.files.delete({ name: file.name! }).catch(() => {}); },
   };
 }
 
@@ -74,12 +91,11 @@ export async function transcribeAudio(buffer: Buffer, mimeType: string): Promise
   const { part, cleanup } = await prepareAudio(buffer, mimeType);
   try {
     return await withFallback(async (modelName) => {
-      const model = getClient().getGenerativeModel({ model: modelName, safetySettings: SAFETY });
-      const result = await model.generateContent([
+      const text = await generate(modelName, [
         part,
         "請將此音訊完整逐字轉錄為繁體中文。只輸出逐字稿內容，不要加任何說明。",
       ]);
-      return result.response.text().trim();
+      return text.trim();
     });
   } finally {
     await cleanup();
@@ -98,16 +114,11 @@ export async function analyzeTrust(
   const prepared = input.audio ? await prepareAudio(input.audio.buffer, input.audio.mimeType) : null;
   try {
     return await withFallback(async (modelName) => {
-      const model = getClient().getGenerativeModel({
-        model: modelName,
-        safetySettings: SAFETY,
-        generationConfig: { responseMimeType: "application/json", temperature: 0.2 },
-      });
       const parts: (string | Part)[] = [prompt];
       if (prepared) parts.push(prepared.part);
       else parts.push(`以下是通話逐字稿：\n${input.transcript ?? ""}`);
-      const result = await model.generateContent(parts);
-      const text = result.response.text().replace(/^```(?:json)?\s*|\s*```$/g, "");
+      const raw = await generate(modelName, parts, { responseMimeType: "application/json", temperature: 0.2 });
+      const text = raw.replace(/^```(?:json)?\s*|\s*```$/g, "");
       try {
         return { raw: JSON.parse(text), model: modelName };
       } catch {
@@ -189,13 +200,8 @@ const SYSTEM_PROMPT = `你是一位 UIUX 與平面設計線上課程的資深設
 
 export async function analyzeTranscript(transcript: string) {
   return withFallback(async (modelName) => {
-    const model = getClient().getGenerativeModel({
-      model: modelName,
-      safetySettings: SAFETY,
-      generationConfig: { responseMimeType: "application/json" },
-    });
-    const result = await model.generateContent([SYSTEM_PROMPT, transcript]);
-    return JSON.parse(result.response.text()) as {
+    const text = await generate(modelName, [SYSTEM_PROMPT, transcript], { responseMimeType: "application/json" });
+    return JSON.parse(text) as {
       tags: string[];
       motivation: string;
       personality: string;
